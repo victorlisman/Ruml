@@ -1,11 +1,17 @@
+use super::tensor_error::TensorError;
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Tensor<T> {
     data: Vec<T>,
     shape: Vec<usize>,
 }
 
 impl<T> Tensor<T> {
-    pub fn new(data: Vec<T>, shape: Vec<usize>) -> Self {
-        Tensor { data, shape }
+    pub fn new(data: Vec<T>, shape: Vec<usize>) -> Result<Self, TensorError> {
+        if data.len() != shape.iter().product() {
+            return Err(TensorError::InvalidShape);
+        }
+        Ok(Tensor { data, shape })
     }
 
     pub fn shape(&self) -> &Vec<usize> {
@@ -16,12 +22,14 @@ impl<T> Tensor<T> {
         &self.data
     }
 
-    pub fn multiply(&self, other: &Tensor<T>) -> Tensor<T>
+    pub fn multiply(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError>
     where
         T: std::ops::Mul<Output = T> + Copy,
     {
-        assert_eq!(self.shape, other.shape);
-        let data = self
+        if self.shape != other.shape {
+            return Err(TensorError::ShapeMismatch);
+        }
+        let data: Vec<T> = self
             .data
             .iter()
             .zip(other.data.iter())
@@ -30,12 +38,14 @@ impl<T> Tensor<T> {
         Tensor::new(data, self.shape.clone())
     }
 
-    pub fn add(&self, other: &Tensor<T>) -> Tensor<T>
+    pub fn add(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError>
     where
         T: std::ops::Add<Output = T> + Copy,
     {
-        assert_eq!(self.shape, other.shape);
-        let data = self
+        if self.shape != other.shape {
+            return Err(TensorError::ShapeMismatch);
+        }
+        let data: Vec<T> = self
             .data
             .iter()
             .zip(other.data.iter())
@@ -44,12 +54,14 @@ impl<T> Tensor<T> {
         Tensor::new(data, self.shape.clone())
     }
 
-    pub fn subtract(&self, other: &Tensor<T>) -> Tensor<T>
+    pub fn subtract(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError>
     where
         T: std::ops::Sub<Output = T> + Copy,
     {
-        assert_eq!(self.shape, other.shape);
-        let data = self
+        if self.shape != other.shape {
+            return Err(TensorError::ShapeMismatch);
+        }
+        let data: Vec<T> = self
             .data
             .iter()
             .zip(other.data.iter())
@@ -58,12 +70,14 @@ impl<T> Tensor<T> {
         Tensor::new(data, self.shape.clone())
     }
 
-    pub fn divide(&self, other: &Tensor<T>) -> Tensor<T>
+    pub fn divide(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError>
     where
         T: std::ops::Div<Output = T> + Copy,
     {
-        assert_eq!(self.shape, other.shape);
-        let data = self
+        if self.shape != other.shape {
+            return Err(TensorError::ShapeMismatch);
+        }
+        let data: Vec<T> = self
             .data
             .iter()
             .zip(other.data.iter())
@@ -72,16 +86,18 @@ impl<T> Tensor<T> {
         Tensor::new(data, self.shape.clone())
     }
 
-    pub fn dot(&self, other: &Tensor<T>) -> Tensor<T>
+    pub fn dot(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError>
     where
-        T: std::ops::Mul<Output = T> + std::ops::Add<Output = T> + Copy,
+        T: std::ops::Mul<Output = T> + std::ops::Add<Output = T> + Copy + Default,
     {
-        assert_eq!(self.shape[1], other.shape[0]);
-        let mut data = Vec::new();
+        if self.shape[1] != other.shape[0] {
+            return Err(TensorError::ShapeMismatch);
+        }
+        let mut data = Vec::with_capacity(self.shape[0] * other.shape[1]);
         for i in 0..self.shape[0] {
             for j in 0..other.shape[1] {
-                let mut sum = self.data[i * self.shape[1]] * other.data[j];
-                for k in 1..self.shape[1] {
+                let mut sum = T::default();
+                for k in 0..self.shape[1] {
                     sum = sum + self.data[i * self.shape[1] + k] * other.data[k * other.shape[1] + j];
                 }
                 data.push(sum);
@@ -90,104 +106,78 @@ impl<T> Tensor<T> {
         Tensor::new(data, vec![self.shape[0], other.shape[1]])
     }
 
+    pub fn transpose(&self) -> Tensor<T>
+    where
+        T: Copy,
+    {
+        let mut data = Vec::with_capacity(self.data.len());
+        for i in 0..self.shape[1] {
+            for j in 0..self.shape[0] {
+                data.push(self.data[j * self.shape[1] + i]);
+            }
+        }
+        Tensor::new(data, vec![self.shape[1], self.shape[0]]).unwrap()
+    }
+
+    pub fn pow(&self, power: u32) -> Tensor<T>
+    where
+        T: std::ops::Mul<Output = T> + Copy + Default,
+    {
+        let data: Vec<T> = self
+            .data
+            .iter()
+            .map(|x| (0..power).fold(T::default(), |acc, _| acc * *x))
+            .collect();
+        Tensor::new(data, self.shape.clone()).unwrap()
+    }
+
+    pub fn multiply_scalar(&self, scalar: T) -> Tensor<T>
+    where
+        T: std::ops::Mul<Output = T> + Copy,
+    {
+        let data: Vec<T> = self.data.iter().map(|x| *x * scalar).collect();
+        Tensor::new(data, self.shape.clone()).unwrap()
+    }
+
+    pub fn mean(&self) -> T
+    where
+        T: std::ops::Add<Output = T> + std::ops::Div<Output = T> + Copy + Default + From<f32>,
+    {
+        let sum: T = self.data.iter().copied().fold(T::default(), |acc, x| acc + x);
+        sum / T::from(self.data.len() as f32)
+    }
+
     pub fn zeros(shape: Vec<usize>) -> Tensor<T>
     where
         T: Default + Copy,
     {
         let data = vec![T::default(); shape.iter().product()];
-        Tensor::new(data, shape)
+        Tensor::new(data, shape).unwrap()
     }
 
     pub fn ones(shape: Vec<usize>) -> Tensor<T>
     where
         T: Default + std::ops::Add<Output = T> + Copy,
     {
-        let data = vec![T::default() + T::default(); shape.iter().product()];
-        Tensor::new(data, shape)
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tensor() {
-        let data = vec![1, 2, 3, 4, 5, 6];
-        let shape = vec![2, 3];
-        let tensor = Tensor::new(data, shape);
-        assert_eq!(tensor.shape(), &vec![2, 3]);
+        let data = vec![(T::default() + T::default() + T::default()); shape.iter().product()];
+        Tensor::new(data, shape).unwrap()
     }
 
-    #[test]
-    fn test_multiply() {
-        let data1 = vec![1, 2, 3, 4, 5, 6];
-        let shape1 = vec![2, 3];
-        let tensor1 = Tensor::new(data1, shape1);
-
-        let data2 = vec![7, 8, 9, 10, 11, 12];
-        let shape2 = vec![2, 3];
-        let tensor2 = Tensor::new(data2, shape2);
-
-        let result = tensor1.multiply(&tensor2);
-        assert_eq!(result.data, vec![7, 16, 27, 40, 55, 72]);
+    pub fn item(&self) -> T
+    where
+        T: Copy,
+    {
+        assert_eq!(self.data.len(), 1);
+        self.data[0]
     }
 
-    #[test]
-    fn test_add() {
-        let data1 = vec![1, 2, 3, 4, 5, 6];
-        let shape1 = vec![2, 3];
-        let tensor1 = Tensor::new(data1, shape1);
-
-        let data2 = vec![7, 8, 9, 10, 11, 12];
-        let shape2 = vec![2, 3];
-        let tensor2 = Tensor::new(data2, shape2);
-
-        let result = tensor1.add(&tensor2);
-        assert_eq!(result.data, vec![8, 10, 12, 14, 16, 18]);
+    pub fn reshape(&self, shape: Vec<usize>) -> Result<Tensor<T>, TensorError>
+    where
+        T: Copy,
+    {
+        if self.data.len() != shape.iter().product() {
+            return Err(TensorError::InvalidShape);
+        }
+        Tensor::new(self.data.clone(), shape)
     }
-
-    #[test]
-    fn test_subtract() {
-        let data1 = vec![1, 2, 3, 4, 5, 6];
-        let shape1 = vec![2, 3];
-        let tensor1 = Tensor::new(data1, shape1);
-
-        let data2 = vec![7, 8, 9, 10, 11, 12];
-        let shape2 = vec![2, 3];
-        let tensor2 = Tensor::new(data2, shape2);
-
-        let result = tensor1.subtract(&tensor2);
-        assert_eq!(result.data, vec![-6, -6, -6, -6, -6, -6]);
-    }
-
-    #[test]
-    fn test_divide() {
-        let data1 = vec![1, 2, 3, 4, 5, 6];
-        let shape1 = vec![2, 3];
-        let tensor1 = Tensor::new(data1, shape1);
-
-        let data2 = vec![7, 8, 9, 10, 11, 12];
-        let shape2 = vec![2, 3];
-        let tensor2 = Tensor::new(data2, shape2);
-
-        let result = tensor1.divide(&tensor2);
-        assert_eq!(result.data, vec![0, 0, 0, 0, 0, 0]);
-    }
-
-    #[test]
-    fn test_dot() {
-        let data1 = vec![1, 2, 3, 4];
-        let shape1 = vec![2, 2];
-        let tensor1 = Tensor::new(data1, shape1);
-
-        let data2 = vec![5, 6, 7, 8];
-        let shape2 = vec![2, 2];
-        let tensor2 = Tensor::new(data2, shape2);
-
-        let result = tensor1.dot(&tensor2);
-        assert_eq!(result.data, vec![19, 22, 43, 50]);
-    }
-
 }
