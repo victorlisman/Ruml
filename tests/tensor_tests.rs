@@ -4,13 +4,14 @@ use ruml::tensor::tensor::Tensor;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ruml::tensor::shape::Shape; // Assuming the Shape struct is in a separate file/module
 
     #[test]
     fn test_tensor() {
         let data = vec![1, 2, 3, 4, 5, 6];
         let shape = vec![2, 3];
         let tensor = Tensor::new(data, shape).unwrap();
-        assert_eq!(tensor.shape(), &vec![2, 3]);
+        assert_eq!(tensor.shape(), &Shape::new(vec![2, 3]));
     }
 
     #[test]
@@ -66,7 +67,7 @@ mod tests {
         let tensor2 = Tensor::new(data2, shape2).unwrap();
 
         let result = tensor1.divide(&tensor2).unwrap();
-        assert_eq!(*result.data(), vec![0, 0, 0, 0, 0, 0]);
+        assert_eq!(*result.data(), vec![1 / 7, 2 / 8, 3 / 9, 4 / 10, 5 / 11, 6 / 12]);
     }
 
     #[test]
@@ -101,7 +102,7 @@ mod tests {
 
         let new_shape = vec![4];
         let reshaped = tensor.reshape(new_shape).unwrap();
-        assert_eq!(reshaped.shape(), &vec![4]);
+        assert_eq!(reshaped.shape(), &Shape::new(vec![4]));
         assert_eq!(reshaped.data(), &vec![1, 2, 3, 4]);
     }
 
@@ -112,7 +113,7 @@ mod tests {
         let tensor = Tensor::new(data, shape).unwrap();
 
         let transposed = tensor.transpose();
-        assert_eq!(transposed.shape(), &vec![3, 2]);
+        assert_eq!(transposed.shape(), &Shape::new(vec![3, 2]));
         assert_eq!(transposed.data(), &vec![1, 4, 2, 5, 3, 6]);
     }
 }

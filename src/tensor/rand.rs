@@ -9,12 +9,7 @@ struct Rand<T> {
 
 impl<T> Rand<T> {
     pub fn new(shape: Vec<usize>, seed: i32) -> Rand<T> {
-        let tensor = Tensor::new(vec![], shape.clone()).unwrap();
-        Rand {
-            tensor,
-            shape,
-            seed,
-        }
+        unimplemented!();
     }
 
     pub fn fill(&mut self) {
