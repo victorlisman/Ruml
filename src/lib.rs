@@ -1,2 +1,5 @@
 pub mod tensor;
-pub mod base_model;
+pub mod model;
+pub mod shape;
+pub mod tensor_error;
+pub mod optimizer;

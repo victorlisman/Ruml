@@ -1,10 +1,10 @@
 extern crate ruml;
-use ruml::tensor::tensor::Tensor;
+use ruml::tensor::Tensor;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ruml::tensor::shape::Shape; // Assuming the Shape struct is in a separate file/module
+    use ruml::shape::Shape; 
 
     #[test]
     fn test_tensor() {

@@ -1,4 +1,4 @@
-use super::tensor_error::TensorError;
+use crate::tensor_error::TensorError;
 use super::shape::Shape;
 use std::ops::{Add, Sub, Mul, Div};
 
