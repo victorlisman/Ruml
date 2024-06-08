@@ -32,6 +32,24 @@ where
         Ok(Tensor { data, shape })
     }
 
+    /// Returns a reference to the shape of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// * `&Shape` - The shape of the tensor.
+    pub fn shape(&self) -> &Shape {
+        &self.shape
+    }
+
+    /// Returns a reference to the data of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// * `&Vec<T>` - The data of the tensor.
+    pub fn data(&self) -> &Vec<T> {
+        &self.data
+    }
+
     /// Performs a dot product between two tensors along the specified axes.
     ///
     /// # Arguments
@@ -89,27 +107,6 @@ where
         Tensor::new(data, new_shape)
     }
 
-    /// Computes the sum of all elements in the tensor.
-    ///
-    /// # Returns
-    ///
-    /// * `T` - The sum of all elements.
-    pub fn sum(&self) -> T {
-        self.data.iter().copied().fold(T::default(), |acc, x| acc + x)
-    }
-
-    /// Computes the mean of all elements in the tensor.
-    ///
-    /// # Returns
-    ///
-    /// * `T` - The mean of all elements.
-    pub fn mean(&self) -> T
-    where
-        T: From<f32>,
-    {
-        self.sum() / T::from(self.data.len() as f32)
-    }
-
     /// Transposes the tensor by permuting its axes.
     ///
     /// # Arguments
@@ -139,6 +136,80 @@ where
         }
 
         Tensor::new(data, new_shape)
+    }
+
+    /// Computes the sum of all elements in the tensor.
+    ///
+    /// # Returns
+    ///
+    /// * `T` - The sum of all elements.
+    pub fn sum(&self) -> T {
+        self.data.iter().copied().fold(T::default(), |acc, x| acc + x)
+    }
+
+    /// Computes the mean of all elements in the tensor.
+    ///
+    /// # Returns
+    ///
+    /// * `T` - The mean of all elements.
+    pub fn mean(&self) -> T
+    where
+        T: From<f32>,
+    {
+        self.sum() / T::from(self.data.len() as f32)
+    }
+
+    /// Multiplies this tensor with another tensor element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The other tensor to multiply.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Tensor<T>)` - The result of the multiplication.
+    /// * `Err(TensorError::ShapeMismatch)` - If the shapes do not match.
+    pub fn multiply(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError> {
+        if self.shape.dims != other.shape.dims {
+            return Err(TensorError::ShapeMismatch);
+        }
+        let data: Vec<T> = self.data.iter().zip(&other.data).map(|(&a, &b)| a * b).collect();
+        Tensor::new(data, self.shape.dims.clone())
+    }
+
+    /// Multiplies each element of the tensor by a scalar.
+    ///
+    /// # Arguments
+    ///
+    /// * `scalar` - The scalar to multiply.
+    ///
+    /// # Returns
+    ///
+    /// * `Tensor<T>` - The result tensor.
+    pub fn multiply_scalar(&self, scalar: T) -> Tensor<T>
+    where
+        T: Copy + Mul<Output = T>,
+    {
+        let data: Vec<T> = self.data.iter().map(|&x| x * scalar).collect();
+        Tensor::new(data, self.shape.dims.clone()).unwrap()
+    }
+
+    /// Adds another tensor to this tensor element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `other` - The other tensor to add.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Tensor<T>)` - The result of the addition.
+    /// * `Err(TensorError::ShapeMismatch)` - If the shapes do not match.
+    pub fn add(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError> {
+        if self.shape.dims != other.shape.dims {
+            return Err(TensorError::ShapeMismatch);
+        }
+        let data: Vec<T> = self.data.iter().zip(&other.data).map(|(&a, &b)| a + b).collect();
+        Tensor::new(data, self.shape.dims.clone())
     }
 
     /// Adds a scalar to each element of the tensor.
@@ -176,57 +247,21 @@ where
         Tensor::new(data, self.shape.dims.clone())
     }
 
-    /// Multiplies each element of the tensor by a scalar.
-    ///
+    /// Subtracts a scalar from each element of the tensor.
+    /// 
     /// # Arguments
-    ///
-    /// * `scalar` - The scalar to multiply.
-    ///
+    /// 
+    /// * `scalar` - The scalar to subtract.
+    /// 
     /// # Returns
-    ///
+    /// 
     /// * `Tensor<T>` - The result tensor.
-    pub fn multiply_scalar(&self, scalar: T) -> Tensor<T>
+    pub fn subtract_scalar(&self, scalar: T) -> Tensor<T>
     where
-        T: Copy + Mul<Output = T>,
+        T: Copy + Sub<Output = T>,
     {
-        let data: Vec<T> = self.data.iter().map(|&x| x * scalar).collect();
+        let data: Vec<T> = self.data.iter().map(|&x| x - scalar).collect();
         Tensor::new(data, self.shape.dims.clone()).unwrap()
-    }
-
-    /// Multiplies this tensor with another tensor element-wise.
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The other tensor to multiply.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Tensor<T>)` - The result of the multiplication.
-    /// * `Err(TensorError::ShapeMismatch)` - If the shapes do not match.
-    pub fn multiply(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError> {
-        if self.shape.dims != other.shape.dims {
-            return Err(TensorError::ShapeMismatch);
-        }
-        let data: Vec<T> = self.data.iter().zip(&other.data).map(|(&a, &b)| a * b).collect();
-        Tensor::new(data, self.shape.dims.clone())
-    }
-
-    /// Adds another tensor to this tensor element-wise.
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The other tensor to add.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(Tensor<T>)` - The result of the addition.
-    /// * `Err(TensorError::ShapeMismatch)` - If the shapes do not match.
-    pub fn add(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError> {
-        if self.shape.dims != other.shape.dims {
-            return Err(TensorError::ShapeMismatch);
-        }
-        let data: Vec<T> = self.data.iter().zip(&other.data).map(|(&a, &b)| a + b).collect();
-        Tensor::new(data, self.shape.dims.clone())
     }
 
     /// Divides this tensor by another tensor element-wise.
@@ -247,6 +282,23 @@ where
         Tensor::new(data, self.shape.dims.clone())
     }
 
+    /// Divides each element of the tensor by a scalar.
+    ///     
+    /// # Arguments
+    /// 
+    /// * `scalar` - The scalar to divide by.
+    /// 
+    /// # Returns
+    ///     
+    /// * `Tensor<T>` - The result tensor.
+    pub fn divide_scalar(&self, scalar: T) -> Tensor<T>
+    where
+        T: Copy + Div<Output = T>,
+    {
+        let data: Vec<T> = self.data.iter().map(|&x| x / scalar).collect();
+        Tensor::new(data, self.shape.dims.clone()).unwrap()
+    }
+
     /// Reshapes the tensor to the new shape.
     ///
     /// # Arguments
@@ -264,22 +316,23 @@ where
         Tensor::new(self.data.clone(), new_shape)
     }
 
-    /// Returns a reference to the shape of the tensor.
-    ///
-    /// # Returns
-    ///
-    /// * `&Shape` - The shape of the tensor.
-    pub fn shape(&self) -> &Shape {
-        &self.shape
+    //TODO: CHECK IF THIS IS CORRECT, write tests
+    pub fn flatten(&self) -> Tensor<T> {
+        let new_shape = vec![self.shape.size()];
+        Tensor::new(self.data.clone(), new_shape).unwrap()
     }
 
-    /// Returns a reference to the data of the tensor.
-    ///
-    /// # Returns
-    ///
-    /// * `&Vec<T>` - The data of the tensor.
-    pub fn data(&self) -> &Vec<T> {
-        &self.data
+    //TODO: CHECK IF THIS IS CORRECT, write tests
+    pub fn squeeze(&self) -> Tensor<T> {
+        let new_shape: Vec<usize> = self.shape.dims.iter().filter(|&x| *x != 1).cloned().collect();
+        Tensor::new(self.data.clone(), new_shape).unwrap()
+    }
+
+    //TODO: CHECK IF THIS IS CORRECT, write tests
+    pub fn unsqueeze(&self, axis: usize) -> Tensor<T> {
+        let mut new_shape = self.shape.dims.clone();
+        new_shape.insert(axis, 1);
+        Tensor::new(self.data.clone(), new_shape).unwrap()
     }
 
     /// Helper function to compute the strides of a tensor given its shape.

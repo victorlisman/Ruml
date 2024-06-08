@@ -1,4 +1,12 @@
-1. Complete tensor implementation, currently need to support more than 2d 
-4. Start implementing the base_model
-2. Add more tests
+1. Complete tensor implementation
+    a. Add all the required operations
+    b. Overload operators for easier writting
+    c. Complete writting tests for all methods
+2. Complete implementing the base model
+    a. Add some loss and optimizer functions
+    b. Check that it can be properly utilized
+    c. Write tests
+    d. Add examples for models
+    e. Complete loss and optimizer function implementation
+
 3. Start writting documentation
