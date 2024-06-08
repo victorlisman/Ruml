@@ -1,5 +1,5 @@
 extern crate ruml;
-use ruml::tensor::tensor::Tensor;
+use ruml::tensor::Tensor;
 
 pub struct LinearRegression {
     lr: f64,
@@ -25,9 +25,9 @@ impl LinearRegression {
         self.w = Some(Tensor::new(vec![0.0; num_features], vec![num_features, 1]).unwrap());
 
         for epoch in 0..self.epochs {
-            let y_pred = X.dot(self.w.as_ref().unwrap()).unwrap().add_scalar(self.b);
+            let y_pred = X.dot(self.w.as_ref().unwrap(), 1, 0).unwrap().add_scalar(self.b);
 
-            let dw = X.transpose().dot(&y_pred.subtract(y).unwrap()).unwrap().multiply_scalar(1.0 / num_samples as f64);
+            let dw = X.transpose(vec![1, 0]).unwrap().dot(&y_pred.subtract(y).unwrap(), 1, 0).unwrap().multiply_scalar(1.0 / num_samples as f64);
             let db = y_pred.subtract(y).unwrap().sum() * (1.0 / num_samples as f64);
 
             self.w = Some(self.w.as_ref().unwrap().subtract(&dw.multiply_scalar(self.lr)).unwrap());
@@ -44,7 +44,7 @@ impl LinearRegression {
     }
 
     pub fn predict(&self, X: &Tensor<f64>) -> Tensor<f64> {
-        X.dot(self.w.as_ref().unwrap()).unwrap().add_scalar(self.b)
+        X.dot(self.w.as_ref().unwrap(), 1, 0).unwrap().add_scalar(self.b)
     }
 
     pub fn mse(&self, y_true: &Tensor<f64>, y_pred: &Tensor<f64>) -> f64 {

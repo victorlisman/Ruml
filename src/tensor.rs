@@ -32,45 +32,61 @@ where
         Ok(Tensor { data, shape })
     }
 
-    /// Performs a dot product between two tensors.
+    /// Performs a dot product between two tensors along the specified axes.
     ///
     /// # Arguments
     ///
     /// * `other` - The other tensor to dot with.
+    /// * `self_axis` - The axis of the first tensor to contract along.
+    /// * `other_axis` - The axis of the second tensor to contract along.
     ///
     /// # Returns
     ///
     /// * `Ok(Tensor<T>)` - The result of the dot product.
-    /// * `Err(TensorError::InvalidShape)` - If either tensor is not 2-dimensional.
     /// * `Err(TensorError::ShapeMismatch)` - If the dimensions are not aligned for dot product.
-    pub fn dot(&self, other: &Tensor<T>) -> Result<Tensor<T>, TensorError>
+    pub fn dot(&self, other: &Tensor<T>, self_axis: usize, other_axis: usize) -> Result<Tensor<T>, TensorError>
     where
         T: std::ops::Mul<Output = T> + std::ops::Add<Output = T> + Copy + Default,
     {
-        if self.shape.dims.len() != 2 || other.shape.dims.len() != 2 {
-            return Err(TensorError::InvalidShape);
-        }
-        if self.shape.dims[1] != other.shape.dims[0] {
+        if self.shape.dims[self_axis] != other.shape.dims[other_axis] {
             return Err(TensorError::ShapeMismatch);
         }
 
-        let rows = self.shape.dims[0];
-        let cols = other.shape.dims[1];
-        let common_dim = self.shape.dims[1];
+        // Calculate the shape of the resulting tensor
+        let mut new_shape = self.shape.dims.clone();
+        new_shape.remove(self_axis);
+        let mut other_shape = other.shape.dims.clone();
+        other_shape.remove(other_axis);
+        new_shape.extend(other_shape);
 
-        let mut data = vec![T::default(); rows * cols];
+        let mut data = vec![T::default(); new_shape.iter().product()];
 
-        for i in 0..rows {
-            for j in 0..cols {
-                let mut sum = T::default();
-                for k in 0..common_dim {
-                    sum = sum + self.data[i * common_dim + k] * other.data[k * cols + j];
+        let self_strides = self.compute_strides(&self.shape.dims);
+        let other_strides = other.compute_strides(&other.shape.dims);
+        let new_strides = self.compute_strides(&new_shape);
+
+        for self_index_flat in 0..self.shape.size() {
+            let self_index = self.index_from_flat(self_index_flat, &self_strides);
+            let mut self_index_no_contract = self_index.clone();
+            self_index_no_contract.remove(self_axis);
+
+            for other_index_flat in 0..other.shape.size() {
+                let other_index = other.index_from_flat(other_index_flat, &other_strides);
+                if self_index[self_axis] == other_index[other_axis] {
+                    let mut other_index_no_contract = other_index.clone();
+                    other_index_no_contract.remove(other_axis);
+
+                    let mut result_index = self_index_no_contract.clone();
+                    result_index.extend(other_index_no_contract);
+
+                    let result_index_flat = self.flat_from_index(&result_index, &new_strides);
+                    data[result_index_flat] = data[result_index_flat] +
+                        self.data[self_index_flat] * other.data[other_index_flat];
                 }
-                data[i * cols + j] = sum;
             }
         }
 
-        Tensor::new(data, vec![rows, cols])
+        Tensor::new(data, new_shape)
     }
 
     /// Computes the sum of all elements in the tensor.
@@ -94,19 +110,35 @@ where
         self.sum() / T::from(self.data.len() as f32)
     }
 
-    /// Transposes the tensor.
+    /// Transposes the tensor by permuting its axes.
+    ///
+    /// # Arguments
+    ///
+    /// * `perm` - A permutation of the tensor's axes.
     ///
     /// # Returns
     ///
-    /// * `Tensor<T>` - The transposed tensor.
-    pub fn transpose(&self) -> Tensor<T> {
-        let mut data = Vec::with_capacity(self.data.len());
-        for i in 0..self.shape.dims[1] {
-            for j in 0..self.shape.dims[0] {
-                data.push(self.data[j * self.shape.dims[1] + i]);
-            }
+    /// * `Result<Tensor<T>, TensorError>` - The transposed tensor or an error if the permutation is invalid.
+    pub fn transpose(&self, perm: Vec<usize>) -> Result<Tensor<T>, TensorError> {
+        if perm.len() != self.shape.ndims() {
+            return Err(TensorError::InvalidShape);
         }
-        Tensor::new(data, vec![self.shape.dims[1], self.shape.dims[0]]).unwrap()
+
+        let new_shape: Vec<usize> = perm.iter().map(|&i| self.shape.dims[i]).collect();
+        let mut data = vec![T::default(); self.data.len()];
+
+        let old_strides = self.compute_strides(&self.shape.dims);
+        let new_strides = self.compute_strides(&new_shape);
+
+        for (i, &value) in self.data.iter().enumerate() {
+            let old_indices = self.index_from_flat(i, &old_strides);
+            let new_indices: Vec<usize> = perm.iter().map(|&j| old_indices[j]).collect();
+            let new_idx = self.flat_from_index(&new_indices, &new_strides);
+
+            data[new_idx] = value;
+        }
+
+        Tensor::new(data, new_shape)
     }
 
     /// Adds a scalar to each element of the tensor.
@@ -249,4 +281,30 @@ where
     pub fn data(&self) -> &Vec<T> {
         &self.data
     }
+
+    /// Helper function to compute the strides of a tensor given its shape.
+    fn compute_strides(&self, shape: &[usize]) -> Vec<usize> {
+        let mut strides = vec![1; shape.len()];
+        for i in (0..shape.len() - 1).rev() {
+            strides[i] = strides[i + 1] * shape[i + 1];
+        }
+        strides
+    }
+
+    /// Helper function to convert a flat index to a multi-dimensional index.
+    fn index_from_flat(&self, flat_index: usize, strides: &[usize]) -> Vec<usize> {
+        let mut index = vec![0; strides.len()];
+        let mut remaining = flat_index;
+        for i in 0..strides.len() {
+            index[i] = remaining / strides[i];
+            remaining %= strides[i];
+        }
+        index
+    }
+
+    /// Helper function to convert a multi-dimensional index to a flat index.
+    fn flat_from_index(&self, index: &[usize], strides: &[usize]) -> usize {
+        index.iter().zip(strides).map(|(&i, &s)| i * s).sum()
+    }
+
 }

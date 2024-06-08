@@ -80,7 +80,7 @@ mod tests {
         let shape2 = vec![2, 2];
         let tensor2 = Tensor::new(data2, shape2).unwrap();
 
-        let result = tensor1.dot(&tensor2).unwrap();
+        let result = tensor1.dot(&tensor2, 1, 0).unwrap();
         assert_eq!(*result.data(), vec![19, 22, 43, 50]);
     }
 
@@ -112,7 +112,7 @@ mod tests {
         let shape = vec![2, 3];
         let tensor = Tensor::new(data, shape).unwrap();
 
-        let transposed = tensor.transpose();
+        let transposed = tensor.transpose(vec![1, 0]).unwrap();
         assert_eq!(transposed.shape(), &Shape::new(vec![3, 2]));
         assert_eq!(transposed.data(), &vec![1, 4, 2, 5, 3, 6]);
     }
